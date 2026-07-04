@@ -1895,19 +1895,14 @@ if (!window.storage) {
     },
     async set(key, value){
       if (CATALOG_REMOTE_API_URL.startsWith('PASTE_')) throw new Error('Remote storage not configured yet');
-      try {
-        await fetch(CATALOG_REMOTE_API_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          body: JSON.stringify({ action: 'set', key, value })
-        });
-      } catch (e) {
-        throw new Error('Could not reach storage backend');
+      const CHUNK_SIZE = 1500;
+      const total = Math.max(1, Math.ceil(value.length / CHUNK_SIZE));
+      for (let i = 0; i < total; i++) {
+        const chunk = value.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        const url = `${CATALOG_REMOTE_API_URL}?action=setChunk&key=${encodeURIComponent(key)}&index=${i}&total=${total}&data=${encodeURIComponent(chunk)}`;
+        const d = await catalogJsonp_(url);
+        if (!d || !d.ok) throw new Error(d && d.error ? d.error : ('save failed partway through — please try again'));
       }
-      // mode:'no-cors' means we can't read the POST's own response, so
-      // confirm the save actually landed with a follow-up read.
-      const verify = await catalogJsonp_(`${CATALOG_REMOTE_API_URL}?action=get&key=${encodeURIComponent(key)}`);
-      if (!verify || verify.value !== value) throw new Error('Save could not be verified — please try again');
       return { key, value, shared:true };
     },
     async delete(key){
