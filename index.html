@@ -63,6 +63,15 @@
   .pdelete:hover{color:var(--paper);background:var(--rust);border-color:var(--rust);}
   .pedit{right:44px;}
   .pedit:hover{color:var(--paper);background:var(--olive);border-color:var(--olive);}
+
+  /* Edit-mode lock: these controls only appear once unlocked */
+  body:not(.edit-unlocked) #openAddModal,
+  body:not(.edit-unlocked) #openColorManage,
+  body:not(.edit-unlocked) #importBtn,
+  body:not(.edit-unlocked) .pdelete,
+  body:not(.edit-unlocked) .pedit {
+    display: none !important;
+  }
   .pimg-wrap{
     width:100%;aspect-ratio:4/3;background:#e8e2d3;border-radius:2px;overflow:hidden;margin-bottom:12px;
     display:flex;align-items:center;justify-content:center;border:1px solid var(--line);cursor:pointer;
@@ -189,12 +198,25 @@
     <span id="catalogConnDot" style="width:7px;height:7px;border-radius:50%;background:#999;display:inline-block;"></span>
     <span id="catalogConnText">Checking cloud storage…</span>
   </div>
+  <button id="editLockBtn" onclick="openEditLock()" style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:100px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;white-space:nowrap;">🔒 Browse Only</button>
   <nav>
     <button class="active" data-view="catalog">Catalog</button>
     <button data-view="sizing">Size Guide</button>
     <button data-view="fabric">Fabric Info</button>
   </nav>
 </header>
+
+<div class="lockscreen" id="editLockScreen" style="position:fixed;inset:0;background:rgba(20,20,20,.6);display:none;align-items:center;justify-content:center;z-index:200;padding:20px;">
+  <div style="background:var(--card);border-radius:10px;padding:26px;max-width:340px;width:100%;text-align:center;">
+    <h3 style="font-family:'Bebas Neue',sans-serif;letter-spacing:.03em;margin:0 0 6px;font-size:22px;">Edit Mode</h3>
+    <p style="font-size:13px;color:#777;margin:0 0 16px;">Enter the passcode to add, edit, or delete products.<br><span style="color:var(--rust)">This is a soft screen, not real security — anyone reading the page code can find it.</span></p>
+    <input type="text" id="editPinInput" placeholder="Passcode" autocomplete="off" style="width:100%;text-align:center;letter-spacing:4px;font-size:16px;padding:10px;margin-bottom:12px;border:1px solid var(--line);border-radius:6px;">
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeEditLock()" style="flex:1;padding:10px;border-radius:6px;border:none;font-weight:700;cursor:pointer;background:var(--line);color:var(--ink);">Cancel</button>
+      <button onclick="tryUnlockEdit()" style="flex:1;padding:10px;border-radius:6px;border:none;font-weight:700;cursor:pointer;background:var(--olive);color:var(--paper);">Unlock</button>
+    </div>
+  </div>
+</div>
 
 <main>
 
@@ -1949,6 +1971,39 @@ async function checkCatalogStorageConnection(){
     text.textContent = 'NOT connected — changes only save in this tab (' + (e && e.message ? e.message : 'unknown error') + ')';
   }
 }
+
+const CATALOG_EDIT_PASSCODE = "vhmcatalog2026"; // change this to whatever you like
+
+function openEditLock(){
+  if(document.body.classList.contains('edit-unlocked')){
+    if(confirm('Lock editing again and go back to browse-only?')){
+      document.body.classList.remove('edit-unlocked');
+      document.getElementById('editLockBtn').textContent = '🔒 Browse Only';
+    }
+    return;
+  }
+  document.getElementById('editLockScreen').style.display = 'flex';
+  document.getElementById('editPinInput').value = '';
+  document.getElementById('editPinInput').focus();
+}
+function closeEditLock(){
+  document.getElementById('editLockScreen').style.display = 'none';
+}
+function tryUnlockEdit(){
+  const val = document.getElementById('editPinInput').value;
+  if(val === CATALOG_EDIT_PASSCODE){
+    document.body.classList.add('edit-unlocked');
+    document.getElementById('editLockBtn').textContent = '🔓 Edit Mode';
+    closeEditLock();
+  } else {
+    alert('Wrong passcode.');
+  }
+}
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && document.getElementById('editLockScreen').style.display === 'flex'){
+    tryUnlockEdit();
+  }
+});
 
 // ---------- Size systems ----------
 const SHIRT_SIZES = ["S","M","L","XL","2XL","3XL","4XL"];
