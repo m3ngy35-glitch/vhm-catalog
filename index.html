@@ -1895,14 +1895,26 @@ if (!window.storage) {
     },
     async set(key, value){
       if (CATALOG_REMOTE_API_URL.startsWith('PASTE_')) throw new Error('Remote storage not configured yet');
-      const CHUNK_SIZE = 1500;
+      const CHUNK_SIZE = 6000;
       const total = Math.max(1, Math.ceil(value.length / CHUNK_SIZE));
-      for (let i = 0; i < total; i++) {
+      const chunkUrl = (i) => {
         const chunk = value.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-        const url = `${CATALOG_REMOTE_API_URL}?action=setChunk&key=${encodeURIComponent(key)}&index=${i}&total=${total}&data=${encodeURIComponent(chunk)}`;
-        const d = await catalogJsonp_(url);
-        if (!d || !d.ok) throw new Error(d && d.error ? d.error : ('save failed partway through — please try again'));
+        return `${CATALOG_REMOTE_API_URL}?action=setChunk&key=${encodeURIComponent(key)}&index=${i}&total=${total}&data=${encodeURIComponent(chunk)}`;
+      };
+      // Send every chunk except the last one in parallel — order among these
+      // doesn't matter, the backend just holds each until they're all in.
+      if (total > 1) {
+        const results = await Promise.all(
+          Array.from({length: total - 1}, (_, i) => catalogJsonp_(chunkUrl(i)))
+        );
+        for (const d of results) {
+          if (!d || !d.ok) throw new Error(d && d.error ? d.error : 'save failed partway through — please try again');
+        }
       }
+      // Send the last chunk only after all the others are confirmed in place —
+      // this is the one that tells the backend to assemble and save.
+      const last = await catalogJsonp_(chunkUrl(total - 1));
+      if (!last || !last.ok) throw new Error(last && last.error ? last.error : 'save failed partway through — please try again');
       return { key, value, shared:true };
     },
     async delete(key){
